@@ -9,7 +9,6 @@ angular.module('controllers').controller('mainController', ['$scope', 'Upload', 
         $scope.week = "星期" + $scope.Arr[$scope.weekIndex];
 
 
-
         $scope.selectChange = function (obj) {
             var index = document.getElementById('pro_select').selectedIndex;
             if (index >= 1) {
