@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-cn" ng-app="productionTest">
+  <head>
+    <title>产测管理系统</title>
+    <meta charset="utf-8">
+    <base href="/">
+    <meta name="renderer" content="webkit">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<link rel="stylesheet" href="/assets/vendor.css">
+    <link rel="stylesheet" href="/assets/main.css">
+    <script src="/assets/vendor.js"></script>
+    <script src="/assets/main.js"></script>
+    <script src="/assets/views.js"></script>
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+     <script src="/ie9js/html5shiv.min.js"></script>
+     <script src="/ie9js/respond.min.js"></script>
+    <![endif]-->
+
+  </head>
+  <body>
+    <div nd-notification ng-show="notificationShow" ng-class="'bg-' + type" class="notification">
+      <i ng-if="type === 'success'" class="glyphicon glyphicon-check"></i>
+      <i ng-if="type === 'warning'" class="glyphicon glyphicon-warning-sign"></i>
+      <i ng-if="type === 'danger'" class="glyphicon glyphicon-exclamation-sign"></i>
+      {{message}}
+    </div>
+    <div class="ui-view"></div>
+  </body>
+</html>
