@@ -7,6 +7,7 @@ const formidable = require('formidable');
 const xlsx = require('node-xlsx');
 const Path = require('path');
 const fs = require('fs');
+const moment = require('moment');
 
 const toolService = require('../service/tools.service');
 
@@ -45,7 +46,6 @@ exports.uploadFile = function (req, res) {
             num2: -1
         };
         var firstRow = obj[0].data[0];
-        console.log(firstRow)
         for (var i = 0; i < firstRow.length; i++) {
             switch (firstRow[i]) {
                 case '机器号':
@@ -77,9 +77,7 @@ exports.uploadFile = function (req, res) {
         }
 
         var oneDate = obj[0].data[1][keyObj.date];
-        var YMD = oneDate.split(' ')[0];
-
-        var dayOfMonth = toolService.dayOfMonth(YMD);
+        var dayOfMonth = toolService.dayOfMonth(oneDate);
 
         res.send({code: 0, data: dayOfMonth, path: filePath})
     });
@@ -87,307 +85,11 @@ exports.uploadFile = function (req, res) {
 
 
 exports.doWork = function (req, res) {
-    console.log(req.body)
     if (!req.body.path || !req.body.upTime || !req.body.downTime) return res.send({code: 999, msg: '非法操作'});
-    var obj;
-    try {
-        obj = xlsx.parse(req.body.path); // parses a file
-    } catch (err) {
-        return res.send({code: 101, msg: '文件错误'})
-    }
-    res.send({code: 0})
-};
 
-//新建订单，并存储xlsx的数据
-exports.uploadFile2 = function (req, res) {
-    var form = new formidable.IncomingForm();
-    form.encoding = 'utf-8';
-    form.uploadDir = 'file_upload/mac/';
-    form.keepExtensions = true;
-    form.maxFieldsSize = 50 * 1024 * 1024; // 50MB
-    form.hash = 'md5';
-    form.multiples = false;
-    form.parse(req, function (err, fields, fileObj) {
-        var body = fields;
+    var body = req.body;
 
-        if (!body.order || !Number(body.mark) || !Number(body.type) || !body.configName) {
-            return res.send(ERROR_LIST.lackParam)
-        }
-        var option = {
-            order: body.order,
-            mark: Number(body.mark),
-            type: Number(body.type),
-            configName: body.configName,
-            printer: {},
-            bigBox: {},
-            createUser: req.user
-        };
-
-
-        var boxTest = [], boxTestJson = {name: {}, key: {}}, boxTestError;
-        var burn = [], burnJson = {name: {}, key: {}}, burnError;
-        var obj, count = 0, checkXlsx = {};
-
-        //检查烧号配置
-        if (typeof body.burn == 'string') {
-            try {
-                body.burn = JSON.parse(body.burn)
-            } catch (err) {
-                return res.send(ERROR_LIST.lackBurnParam)
-            }
-        }
-        if (!_.isArray(body.burn) || body.burn.length == 0) { //是否为数组，并长度不为0
-            return res.send(ERROR_LIST.lackBurnParam)
-        }
-
-        body.burn.forEach(function (one) {
-            if (one.name && one.key) {
-                if (!burnJson.name[one.name] && !burnJson.key[one.key]) { //去重复
-                    burn.push(one);
-                    burnJson.name[one.name] = 1;
-                    burnJson.key[one.key] = 1;
-
-                    checkXlsx[one.key] = 1;  //用于对xlsx文件的检测
-                } else {
-                    burnError = true;
-                }
-            } else {
-                burnError = true;
-            }
-        });
-
-        if (burnError) {
-            return res.send(ERROR_LIST.lackBurnParam2)
-        } else {
-            option.burn = burn
-        }
-
-
-        //检测mac文件与烧号项是否匹配
-        var oneFile = fileObj['file'];
-        if (!oneFile) return res.send(ERROR_LIST.fileError);
-
-        var filePath = Path.join(__dirname, '../../', oneFile.path);
-
-        try {
-            obj = xlsx.parse(filePath); // parses a file
-        } catch (err) {
-            return res.send(ERROR_LIST.fileError)
-        }
-
-        var keyObj = {
-            mac: -1,
-            sn: -1,
-            sw: -1,
-            hw: -1,
-            key1: -1,
-            key2: -1,
-            key3: -1,
-            key4: -1
-        };
-        var firstRow = obj[0].data[0];
-        for (var i = 0; i < firstRow.length; i++) {
-            switch (firstRow[i]) {
-                case 'mac':
-                    keyObj.mac = i;
-                    break;
-                case 'sn':
-                    keyObj.sn = i;
-                    break;
-                case 'sw':
-                    keyObj.sw = i;
-                    break;
-                case 'hw':
-                    keyObj.hw = i;
-                    break;
-                case 'key1':
-                    keyObj.key1 = i;
-                    break;
-                case 'key2':
-                    keyObj.key2 = i;
-                    break;
-                case 'key3':
-                    keyObj.key3 = i;
-                    break;
-                case 'key4':
-                    keyObj.key4 = i;
-                    break;
-            }
-        }
-
-        //文件缺失勾选的烧号项直接给前端返回错误
-        var checkXlsxError = false;
-        for (var oneBurnKey in checkXlsx) {
-            if (keyObj[oneBurnKey] == -1) {
-                checkXlsxError = true;
-                break;
-            }
-        }
-        if (checkXlsxError) {
-            return res.send(ERROR_LIST.macFileError)
-        }
-
-        //检测打印配置
-        if (!body["printer[modelPath]"] || !Number(body["printer[num]"])) {
-            return res.send(ERROR_LIST.lackPrinterParam)
-        } else {
-            option.printer.modelPath = body["printer[modelPath]"];
-            option.printer.num = Number(body["printer[num]"]);
-        }
-
-        //检测入库配置
-        if (!Number(body["bigBox[maxNum]"]) || !Number(body["bigBox[style]"]) || !body["bigBox[firstCode]"] || !body["bigBox[lastCode]"]) {
-            return res.send(ERROR_LIST.lackBigBoxParam)
-        } else {
-            option.bigBox.maxNum = Number(body["bigBox[maxNum]"]);
-            option.bigBox.style = Number(body["bigBox[style]"]);
-            option.bigBox.firstCode = body["bigBox[firstCode]"];
-            option.bigBox.lastCode = body["bigBox[lastCode]"];
-        }
-
-
-        //检查板卡测试配置
-        if (typeof body.boxTest == 'string') { //当为json时转为array
-            try {
-                body.boxTest = JSON.parse(body.boxTest)
-            } catch (err) {
-                return res.send(ERROR_LIST.lackTestParam)
-            }
-        }
-
-        if (!_.isArray(body.boxTest) || body.boxTest.length == 0) { //是否为数组，并长度不为0
-            return res.send(ERROR_LIST.lackTestParam)
-        }
-        body.boxTest.forEach(function (one) {
-            if (one.name && one.key) { //去空值
-                if (!boxTestJson.name[one.name] && !boxTestJson.key[one.key]) { //去重复
-                    boxTest.push(one);
-                    boxTestJson.name[one.name] = 1;
-                    boxTestJson.key[one.key] = 1
-                } else {
-                    boxTestError = true;
-                }
-            } else {
-                boxTestError = true;
-            }
-        });
-
-        if (boxTestError) {
-            return res.send(ERROR_LIST.lackTestParam2)
-        } else {
-            option.boxTest = boxTest
-        }
-
-
-        async.waterfall([
-            function (callback) { //检查订单号是否唯一
-                ordersService.findOne({order: option.order}, function (err, order) {
-                    callback(err, order);
-                })
-            },
-            function (order, callback) {  //从tools中计算新订单的唯一值
-                if (order) return callback(ERROR_LIST.orderExist);
-
-                toolsService.getCount({name: 'orders'}, function (err, ordersData) {
-                    callback(err, ordersData)
-                })
-            },
-            function (ordersData, callback) { //存储到orders订单集合
-                option.flag = ordersData.count;
-
-                ordersService.save(option, function (err, data) {
-                    callback(err, data)
-                })
-            },
-            function (newOrder, callback) { //将上传的mac文件写入数据库
-                obj[0].data.shift(); //删除xlsx文件的第一行（字段名称行）
-                async.forEach(obj[0].data, function (oneData, cb) {
-
-                    //检测xlsx文件是否有行缺失关键字段
-                    var oneCheck = false;
-                    for (var k in checkXlsx) {
-                        if (!oneData[keyObj[k]]) {
-                            oneCheck = true;
-                            break;
-                        }
-                    }
-
-                    if (oneCheck) { //缺失关键字段，跳过
-                        cb();
-                    } else { //数据齐全进入mac表
-                        count++; //记录有效数据
-                        var query = {
-                            mac: oneData[keyObj.mac] || '',
-                            sn: oneData[keyObj.sn] || '',
-                            state: 0,
-                            burnNum: {workNum: '', time: '', mistake: 0, mark: ''},
-                            checkNum: {workNum: '', time: '', mistake: 0, mark: ''},
-                            printNum: {workNum: '', time: '', mistake: 0, mark: ''},
-                            wMac: '',
-                            bigBox: '',
-                            sw: oneData[keyObj.sw] || '',
-                            hw: oneData[keyObj.hw] || '',
-                            key1: oneData[keyObj.key1] || '',
-                            key2: oneData[keyObj.key2] || '',
-                            key3: oneData[keyObj.key3] || '',
-                            key4: oneData[keyObj.key4] || ''
-                        };
-
-                        macsService.save({data: query, flag: newOrder.flag}, function (err, data) { //保存当行的值进入macs表
-                            if (err) {
-                                if (err.code == 11000) { //mac插入失败，有关键字段重复了，移至 logs报错表
-                                    var logQuery = {
-                                        mac: oneData[keyObj.mac],
-                                        sn: oneData[keyObj.sn],
-                                        msg: '关键字段重复' + err.message.split('key').pop()
-                                    };
-                                    logsService.save({data: logQuery, flag: newOrder.flag}, function (err, data) {
-                                        cb(err)
-                                    })
-                                } else {
-                                    cb(err)
-                                }
-                            } else {
-                                cb()
-                            }
-                        })
-                    }
-                }, function (err, data) {
-                    if (err) {
-                        console.error(err);
-                        return callback(ERROR_LIST.databaseError);
-                    }
-
-                    callback(null, newOrder)
-                });
-            },
-            function (newOrder, callback) {
-                var count2 = Math.ceil(count / newOrder.bigBox.maxNum);
-                ordersService.update({flag: newOrder.flag, count: count2}, function (err) {
-                    callback(err)
-                })
-            }
-        ], function (err, result) {
-            if (err) return res.send(err);
-
-            res.send({code: 0, count: count})
-        });
-
-    });
-
-
-};
-
-
-exports.aa = function (req, res) {
-    var body = {
-        path: 'F:\\github\\checking-in\\public\\upload\\upload_b82944f1f38fe9d1cae20bf201ed6288.xlsx',
-        upTime: '090000',
-        downTime: '180000',
-        burn: '[{"day":"2017/04/03","week":"(一)"},{"day":"2017/04/04","week":"(二)"},{"day":"2017/04/05","week":"(三)"},{"day":"2017/04/06","week":"(四)"},{"day":"2017/04/07","week":"(五)"},{"day":"2017/04/17","week":"(一)"},{"day":"2017/04/18","week":"(二)"},{"day":"2017/04/19","week":"(三)"},{"day":"2017/04/20","week":"(四)"},{"day":"2017/04/21","week":"(五)"}]'
-    };
-
-    var data = JSON.parse(body.burn);
+    var bodyData = JSON.parse(body.burn);
     var obj;
     try {
         obj = xlsx.parse(body.path); // parses a file
@@ -397,13 +99,9 @@ exports.aa = function (req, res) {
 
     var allData = obj[0].data;
     allData.shift();//去除首行
-    // console.log(allData);
-    var checkStr = '';
-    var oneUser = {};
-    var newAllData = [];
 
-    allData = _.map(allData,function(one,i){
-        var _data ={};
+    allData = _.map(allData, function (one, i) {
+        var _data = {};
         _data.num1 = one[keyGlobal.num1];
         _data.num2 = one[keyGlobal.num2];
 
@@ -412,34 +110,80 @@ exports.aa = function (req, res) {
         _data.part = nameAndPart[1];
 
         var date = toolService.normStr(one[keyGlobal.date]);
-        _data.day = date.split(' ')[0];
-        _data.time = date.split(' ')[1];
+        _data.day = moment(date, 'YYYY/MM/DD HH:mm:ss').format('YYYYMMDD');
+        _data.time = moment(date, 'YYYY/MM/DD HH:mm:ss').format('HHmmss');
         return _data
     });
-    console.log(allData);
 
-    _.sortBy(allData,['name']);
+    allData = _.sortBy(allData, ['name', 'day', 'time']);
 
-    // allData.forEach(function (one, i) {
-    //     if (checkStr != one[keyGlobal.name]) {
-    //         newAllData.push(oneUser);
-    //         oneUser = {};
-    //         var nameAndPart = one[keyGlobal.name].split('-');
-    //         oneUser.name = nameAndPart[0];
-    //         oneUser.part = nameAndPart[1];
-    //     }
-    //
-    //     var date = toolService.normStr(one[keyGlobal.date]);
-    //     var index = Number(date.split(' ')[0].split('/').pop());
-    //     var _key = 'n'+index;
-    //     console.log(_key);
-    //     console.log(date);
-    //
-    // });
+    var checkName = '';
+    var checkDay = '';
+    var oneUser = {};
+    var newAllData = [];
+    allData.forEach(function (one, i) {
+        if (checkName != one.name) {
+            if (oneUser.name) {
+                newAllData.push(oneUser);
+                oneUser = {};
+            }
+            oneUser.name = one.name;
+            oneUser.part = one.part;
+        }
 
+        var _key = 'n' + one.day.substring(6, 8);
+        if (checkDay != one.day) {
+            var upTime = moment(body.upTime, 'HHmmss');
+            var userUpTime = moment(one.time, 'HHmmss');
+            var minutes = userUpTime.diff(upTime, 'm');
+            if (minutes <= 0) {
+                oneUser[_key] = '一次>Y';
+                if(allData[i + 1] && allData[i + 1].day != one.day){
+                    oneUser[_key] = 'Y,缺下班卡';
+                }
+            } else if(minutes>0&&minutes<540){
+                oneUser[_key] = '一次>迟' + minutes;
+            }else{
+                if(allData[i + 1] && allData[i + 1].day == one.day){
+                    return;
+                }else{
+                    oneUser[_key] = '缺上班卡,Y';
+                }
+            }
+        } else {
+            var downTime = moment(body.upTime, 'HHmmss');
+            var userDownTime = moment(one.time, 'HHmmss');
+            var minutes = downTime.diff(userDownTime, 'm');
+            if (allData[i + 1] && allData[i + 1].day == checkDay) {
+                return;
+            } else {
+                if (minutes > 0) {
+                    oneUser[_key] += ',退' + minutes;
+                } else {
+                    oneUser[_key] += ',Y';
+                }
+            }
+            oneUser[_key] = oneUser[_key].split('>')[1]
+        }
 
-    res.send({code: 0})
+        checkDay = one.day;//检测一天两次
+        checkName = one.name;//检测一天两次
+        if (i == allData.length - 1) { //最后一条数据
+            newAllData.push(oneUser);
+        }
+    });
+
+    newAllData.forEach(function (oneNew, k) {
+        bodyData.forEach(function (oneBody, l) {
+            if (!oneNew[oneBody.key]) {
+                newAllData[k][oneBody.key] = '缺勤'
+            }
+        })
+    });
+
+    res.send({code: 0, data: newAllData})
 };
+
 
 
 

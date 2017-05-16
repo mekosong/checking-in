@@ -15,7 +15,7 @@ exports.dayOfMonth = function (date) {  // date格式为 '2017/4/1 8:48:36';
     for (var i = 0; i < count; i++) {
         var day = moment(startDay, 'YYYY/MM/DD').add(i, 'd').format('YYYY/MM/DD');
         var week = moment(day, 'YYYY/MM/DD').days();
-        allDay.push({day: day, week: weekArr[week]})
+        allDay.push({day: day, week: weekArr[week],key:'n'+day.substring(8,10)})
     }
     return allDay;
 };
@@ -23,6 +23,7 @@ exports.dayOfMonth = function (date) {  // date格式为 '2017/4/1 8:48:36';
 exports.normStr = function (date) {
     var dateArr = date.split(' ');
 
+    console.log(dateArr)
     var _ymd = dateArr[0].split('/');
     var MM = _ymd[1].length;
     var DD = _ymd[2].length;

@@ -6,6 +6,7 @@ angular.module('controllers').controller('mainController', ['$scope', 'Upload', 
         $scope.dayList = [];
         $scope.newOrder = {};
 
+        $scope.chooseArr = [];
 
         $scope.Arr = ["日", "一", "二", "三", "四", "五", "六"];
         $scope.dt = new Date();
@@ -35,6 +36,7 @@ angular.module('controllers').controller('mainController', ['$scope', 'Upload', 
                     });
                 } else {
                     $scope.dayList = resp.data.data;
+                    console.log($scope.dayList);
                     $scope.newOrder.path = resp.data.path;
                 }
             }, function (resp) {
@@ -46,31 +48,33 @@ angular.module('controllers').controller('mainController', ['$scope', 'Upload', 
         };
 
         $scope.doSubmit = function () {
-            // var upTime = moment($scope.newOrder.upTime, 'HHmmss').format('HH:mm:ss');
-            // var downTime = moment($scope.newOrder.downTime, 'HHmmss').format('HH:mm:ss');
-            // if (!upTime || !downTime) {
-            //     return $scope.$emit('notification', {
-            //         type: 'warning',
-            //         message: '不能没有上下时间'
-            //     });
-            // }
-            // //日期选择
-            // var arr = [];
-            // $("input[name='burn']").each(function (i, one) {
-            //     if (one.checked) {
-            //         arr.push($scope.dayList[one.value])
-            //     }
-            // });
-            // if (arr.length == 0) {
-            //     return $scope.$emit('notification', {
-            //         type: 'warning',
-            //         message: '不能没有工作日'
-            //     });
-            // } else {
-            //     $scope.newOrder.burn = angular.toJson(arr)
-            // }
-            //
-            // console.log($scope.newOrder)
+            var upTime = moment($scope.newOrder.upTime, 'HHmmss').format('HH:mm:ss');
+            var downTime = moment($scope.newOrder.downTime, 'HHmmss').format('HH:mm:ss');
+            if (!upTime || !downTime) {
+                return $scope.$emit('notification', {
+                    type: 'warning',
+                    message: '不能没有上下时间'
+                });
+            }
+            //日期选择
+            var arr = [];
+            $("input[name='burn']").each(function (i, one) {
+                if (one.checked) {
+                    arr.push($scope.dayList[one.value])
+                }
+            });
+            if (arr.length == 0) {
+                return $scope.$emit('notification', {
+                    type: 'warning',
+                    message: '不能没有工作日'
+                });
+            } else {
+                $scope.newOrder.burn = angular.toJson(arr);
+                $scope.chooseArr = arr;
+                console.log($scope.chooseArr)
+            }
+
+            console.log($scope.newOrder)
             $http({
                 method: 'POST',
                 url: '/api/orders/doWork',
@@ -82,7 +86,12 @@ angular.module('controllers').controller('mainController', ['$scope', 'Upload', 
                         message: '成功'
                     });
 
-                    $scope.renderTable(response.data);
+                    if($scope.reload){
+                        $('#table1').bootstrapTable('load', data);
+                    }else{
+                        $scope.renderTable(response.data.data);
+                        $scope.reload = true;
+                    }
                 } else {
                     $scope.$emit('notification', {
                         type: 'danger',
@@ -99,7 +108,36 @@ angular.module('controllers').controller('mainController', ['$scope', 'Upload', 
         };
 
 
-        $scope.renderTable = function (data) {
+        $scope.renderTable = function (allData) {
+            var columnsArr = [
+                {
+                    title: '序号',
+                    formatter: function (value, row, index) {
+                        return index
+                    }
+                }, {
+                    title: '姓名',
+                    field: 'name'
+                }, {
+                    title: '部门',
+                    field: 'part'
+                }
+            ];
+            for (var i = 0; i < $scope.dayList.length; i++) {
+                var oneDayObj = {
+                    title: $scope.dayList[i].day + ' ' + $scope.dayList[i].week,
+                    field: $scope.dayList[i].key,
+                    formatter: function (value, row, index) {
+                        if (value) {
+                            return value
+                        } else {
+                            return '-'
+                        }
+                    }
+                };
+                columnsArr.push(oneDayObj)
+            }
+
             $('#table1').bootstrapTable({
                 pagination: true,
                 pageSize: 10, //每页显示10条
@@ -108,41 +146,9 @@ angular.module('controllers').controller('mainController', ['$scope', 'Upload', 
                 showColumns: 'true',
                 showExport: true,//显示导出按钮
                 exportDataType: "all",//导出类型
-                columns: [
-                    {
-                        title: '序号',
-                        formatter: function (value, row, index) {
-                            return index
-                        }
-
-                    }, {
-                        title: '姓名',
-                        field: 'name'
-                    }, {
-                        title: '部门',
-                        field: 'department'
-                    }, {
-                        title: '维修人员',
-                        field: 'user'
-                    }, {
-                        title: '时间',
-                        field: 'time',
-                        sortable: true
-                    }, {
-                        title: '状态',
-                        field: 'isRepair',
-                        sortable: true,
-                        formatter: function (value, row, index) {
-                            if (value == 1) {
-                                return "已维修";
-                            }
-                            return '<span class="text-danger">' + "未维修" + '</span>';
-                        }
-                    }
-                ],
-                data: res.data
-
+                columns: columnsArr,
+                data: allData
             })
-
         }
     }]);
+

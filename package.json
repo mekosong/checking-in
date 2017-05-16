@@ -39,7 +39,7 @@
   "nexe": {
     "input": "bin/www",
     "output": "nexe.exe",
-    "temp": "F:/test/tmp/nexe",
+    "temp": "E:/test/tmp/nexe",
     "debug": false,
     "runtime": {
       "framework": "node",
