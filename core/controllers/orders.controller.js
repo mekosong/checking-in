@@ -10,6 +10,8 @@ const fs = require('fs');
 
 const toolService = require('../service/tools.service');
 
+var keyGlobal = {name: 2, date: 3, num1: 0, num2: 1};
+
 //上传烧号配置
 exports.uploadFile = function (req, res) {
     var form = new formidable.IncomingForm();
@@ -69,7 +71,9 @@ exports.uploadFile = function (req, res) {
             }
         }
         if (checkXlsxError) {
-            return res.send({code:102,msg:'请检查xlsx文件标题是否包含 机器号，考勤号码，姓名，日期时间'})
+            return res.send({code: 102, msg: '请检查xlsx文件标题是否包含 机器号，考勤号码，姓名，日期时间'})
+        } else {
+            keyGlobal = keyObj
         }
 
         var oneDate = obj[0].data[1][keyObj.date];
@@ -77,12 +81,22 @@ exports.uploadFile = function (req, res) {
 
         var dayOfMonth = toolService.dayOfMonth(YMD);
 
-        res.send({code: 0,data:dayOfMonth})
-
-
+        res.send({code: 0, data: dayOfMonth, path: filePath})
     });
 };
 
+
+exports.doWork = function (req, res) {
+    console.log(req.body)
+    if (!req.body.path || !req.body.upTime || !req.body.downTime) return res.send({code: 999, msg: '非法操作'});
+    var obj;
+    try {
+        obj = xlsx.parse(req.body.path); // parses a file
+    } catch (err) {
+        return res.send({code: 101, msg: '文件错误'})
+    }
+    res.send({code: 0})
+};
 
 //新建订单，并存储xlsx的数据
 exports.uploadFile2 = function (req, res) {
@@ -362,6 +376,69 @@ exports.uploadFile2 = function (req, res) {
     });
 
 
+};
+
+
+exports.aa = function (req, res) {
+    var body = {
+        path: 'F:\\github\\checking-in\\public\\upload\\upload_b82944f1f38fe9d1cae20bf201ed6288.xlsx',
+        upTime: '090000',
+        downTime: '180000',
+        burn: '[{"day":"2017/04/03","week":"(一)"},{"day":"2017/04/04","week":"(二)"},{"day":"2017/04/05","week":"(三)"},{"day":"2017/04/06","week":"(四)"},{"day":"2017/04/07","week":"(五)"},{"day":"2017/04/17","week":"(一)"},{"day":"2017/04/18","week":"(二)"},{"day":"2017/04/19","week":"(三)"},{"day":"2017/04/20","week":"(四)"},{"day":"2017/04/21","week":"(五)"}]'
+    };
+
+    var data = JSON.parse(body.burn);
+    var obj;
+    try {
+        obj = xlsx.parse(body.path); // parses a file
+    } catch (err) {
+        return res.send({code: 101, msg: '文件错误'})
+    }
+
+    var allData = obj[0].data;
+    allData.shift();//去除首行
+    // console.log(allData);
+    var checkStr = '';
+    var oneUser = {};
+    var newAllData = [];
+
+    allData = _.map(allData,function(one,i){
+        var _data ={};
+        _data.num1 = one[keyGlobal.num1];
+        _data.num2 = one[keyGlobal.num2];
+
+        var nameAndPart = one[keyGlobal.name].split('-');
+        _data.name = nameAndPart[0];
+        _data.part = nameAndPart[1];
+
+        var date = toolService.normStr(one[keyGlobal.date]);
+        _data.day = date.split(' ')[0];
+        _data.time = date.split(' ')[1];
+        return _data
+    });
+    console.log(allData);
+
+    _.sortBy(allData,['name']);
+
+    // allData.forEach(function (one, i) {
+    //     if (checkStr != one[keyGlobal.name]) {
+    //         newAllData.push(oneUser);
+    //         oneUser = {};
+    //         var nameAndPart = one[keyGlobal.name].split('-');
+    //         oneUser.name = nameAndPart[0];
+    //         oneUser.part = nameAndPart[1];
+    //     }
+    //
+    //     var date = toolService.normStr(one[keyGlobal.date]);
+    //     var index = Number(date.split(' ')[0].split('/').pop());
+    //     var _key = 'n'+index;
+    //     console.log(_key);
+    //     console.log(date);
+    //
+    // });
+
+
+    res.send({code: 0})
 };
 
 

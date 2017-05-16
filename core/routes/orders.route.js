@@ -16,6 +16,9 @@ router.route('/')
 router.route('/uploadFile')
     .post(ordersController.uploadFile);
 
+router.route('/doWork')
+    .post(ordersController.aa);
+
 // router.route('/')
 //   .get(ordersController.findOrder);
 //
